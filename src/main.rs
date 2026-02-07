@@ -190,7 +190,7 @@ fn dispatch_enabled(cmd: Command, config: ConfigFile, files: Vec<ProtectedFile>,
     match cmd {
         Command::Status => do_status(&config, &files, true),
         Command::Lock => do_lock(&files),
-        Command::Unlock { .. } => do_unlock(&files),
+        Command::Unlock { .. } => do_unlock(&files, &root),
         Command::Check => do_check(&files),
         Command::Enable => State::Done {
             message: "✅ Protection is already enabled.".into(),
@@ -207,7 +207,7 @@ fn dispatch_disabled(cmd: Command, config: ConfigFile, files: Vec<ProtectedFile>
         Command::Lock => State::Error {
             message: "⏸️  Protection is disabled. Run 'donttouch enable' first.".into(),
         },
-        Command::Unlock { .. } => do_unlock(&files),
+        Command::Unlock { .. } => do_unlock(&files, &root),
         Command::Check => State::Done {
             message: "⏸️  Protection is disabled. Skipping check.".into(),
         },
@@ -393,16 +393,11 @@ fn do_status(config: &ConfigFile, files: &[ProtectedFile], enabled: bool) -> Sta
 }
 
 fn do_lock(files: &[ProtectedFile]) -> State {
-    if files.is_empty() {
-        return State::Done {
-            message: "No files match the protected patterns.".into(),
-        };
-    }
-
     let mut out = String::new();
     let mut locked = 0;
     let mut already = 0;
 
+    // Lock all protected files
     for f in files {
         if f.readonly {
             already += 1;
@@ -415,6 +410,20 @@ fn do_lock(files: &[ProtectedFile]) -> State {
                 Err(e) => out.push_str(&format!("   ❌ {e}\n")),
             }
         }
+    }
+
+    // Also lock the config file itself
+    let config_path = Path::new(".donttouch.toml");
+    if !is_file_readonly(config_path) {
+        match set_file_readonly(config_path, true) {
+            Ok(()) => {
+                out.push_str("   🔒 .donttouch.toml\n");
+                locked += 1;
+            }
+            Err(e) => out.push_str(&format!("   ❌ {e}\n")),
+        }
+    } else {
+        already += 1;
     }
 
     if locked > 0 {
@@ -430,13 +439,7 @@ fn do_lock(files: &[ProtectedFile]) -> State {
     State::Done { message: out }
 }
 
-fn do_unlock(files: &[ProtectedFile]) -> State {
-    if files.is_empty() {
-        return State::Done {
-            message: "No files match the protected patterns.".into(),
-        };
-    }
-
+fn do_unlock(files: &[ProtectedFile], root: &Path) -> State {
     let mut out = String::new();
     let mut unlocked = 0;
 
@@ -449,6 +452,18 @@ fn do_unlock(files: &[ProtectedFile]) -> State {
                 }
                 Err(e) => out.push_str(&format!("   ❌ {e}\n")),
             }
+        }
+    }
+
+    // Also unlock the config file
+    let config_path = root.join(".donttouch.toml");
+    if is_file_readonly(&config_path) {
+        match set_file_readonly(&config_path, false) {
+            Ok(()) => {
+                out.push_str(&format!("   🔓 {}\n", config_path.display()));
+                unlocked += 1;
+            }
+            Err(e) => out.push_str(&format!("   ❌ {e}\n")),
         }
     }
 
@@ -479,6 +494,7 @@ fn do_check(files: &[ProtectedFile]) -> State {
 }
 
 fn do_enable(files: &[ProtectedFile], root: &Path) -> State {
+    // Config file may be unlocked — write first, then lock everything
     if let Err(e) = write_enabled(root, true) {
         return State::Error { message: e };
     }
@@ -494,6 +510,14 @@ fn do_enable(files: &[ProtectedFile], root: &Path) -> State {
         }
     }
 
+    // Lock the config file too
+    let config_path = root.join(".donttouch.toml");
+    if !is_file_readonly(&config_path) {
+        if set_file_readonly(&config_path, true).is_ok() {
+            locked += 1;
+        }
+    }
+
     if locked > 0 {
         out.push_str(&format!("   🔒 Locked {locked} file(s).\n"));
     }
@@ -503,6 +527,12 @@ fn do_enable(files: &[ProtectedFile], root: &Path) -> State {
 }
 
 fn do_disable(files: &[ProtectedFile], root: &Path) -> State {
+    // Unlock config file first so we can write to it
+    let config_path = root.join(".donttouch.toml");
+    if is_file_readonly(&config_path) {
+        let _ = set_file_readonly(&config_path, false);
+    }
+
     if let Err(e) = write_enabled(root, false) {
         return State::Error { message: e };
     }
