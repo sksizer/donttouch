@@ -12,12 +12,11 @@
 
 ## v0.2 — Enable/Disable + Pre-Push Enforcement
 
-- [ ] `donttouch disable` — sets `enabled = false` in `.donttouch.toml`, pre-commit hook skips checking
-  - [ ] Must be run from OUTSIDE the git repo (prevents agents from disabling it while working in the repo)
-- [ ] `donttouch enable` — sets `enabled = true` (default)
-- [ ] Pre-push hook — always checks regardless of `enabled` flag. Scans all commits being pushed for protected file changes
-- [ ] `donttouch init` installs both pre-commit AND pre-push hooks
-- [ ] Clear messaging: "pre-commit checking disabled, but push enforcement is always active"
+- [x] `donttouch disable` — sets `enabled = false` in `.donttouch.toml`, pre-commit hook skips checking
+- [x] `donttouch enable` — sets `enabled = true` (default)
+- [x] Pre-push hook — always checks regardless of `enabled` flag. Scans all commits being pushed for protected file changes
+- [x] `donttouch init` installs both pre-commit AND pre-push hooks
+- [x] Clear messaging: "pre-commit checking disabled, but push enforcement is always active"
 
 ## v0.3 — Husky Integration
 
