@@ -30,17 +30,10 @@ enum Commands {
     Status,
     /// Install git pre-commit and pre-push hooks
     Init,
-    /// Disable pre-commit checking (must be run from outside the repo)
-    Disable {
-        /// Path to the repo to disable
-        repo: String,
-    },
+    /// Disable pre-commit checking (push enforcement stays active)
+    Disable,
     /// Re-enable pre-commit checking
-    Enable {
-        /// Path to the repo to enable (defaults to current directory)
-        #[arg(default_value = ".")]
-        repo: String,
-    },
+    Enable,
 }
 
 #[derive(Deserialize)]
@@ -164,39 +157,6 @@ fn find_violations(files: &[String], patterns: &[Pattern]) -> Vec<String> {
         .filter(|f| patterns.iter().any(|p| p.matches(f)))
         .cloned()
         .collect()
-}
-
-/// Get the git repo root directory, if we're inside one
-fn get_repo_root() -> Option<String> {
-    let output = Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok()?;
-    if output.status.success() {
-        Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
-    } else {
-        None
-    }
-}
-
-/// Check if cwd is inside the given repo path
-fn is_inside_repo(repo_path: &str) -> bool {
-    let cwd = std::env::current_dir().ok();
-    let repo = std::fs::canonicalize(repo_path).ok();
-
-    if let (Some(cwd), Some(repo)) = (cwd, repo) {
-        cwd.starts_with(&repo)
-    } else {
-        // Also check via git — if we're in any repo, compare roots
-        if let Some(root) = get_repo_root() {
-            let root_canon = std::fs::canonicalize(&root).ok();
-            let repo_canon = std::fs::canonicalize(repo_path).ok();
-            if let (Some(r), Some(rp)) = (root_canon, repo_canon) {
-                return r == rp;
-            }
-        }
-        false
-    }
 }
 
 fn set_enabled(repo_path: &Path, enabled: bool) -> Result<(), String> {
@@ -421,22 +381,12 @@ fn cmd_init() {
     install_hook("pre-push", "donttouch check-push \"$1\" \"$2\"");
 }
 
-fn cmd_disable(repo: &str) {
-    let repo_path = Path::new(repo);
-
-    // Check that we're NOT inside the target repo
-    if is_inside_repo(repo) {
-        eprintln!("🚫 donttouch: you must run 'disable' from OUTSIDE the repository.");
-        eprintln!("   This prevents AI coding agents from disabling protection.");
-        eprintln!("\n   cd .. && donttouch disable {repo}");
-        exit(1);
-    }
-
-    match set_enabled(repo_path, false) {
+fn cmd_disable() {
+    match set_enabled(Path::new("."), false) {
         Ok(()) => {
-            println!("⏸️  Pre-commit checking disabled for {repo}");
+            println!("⏸️  Pre-commit checking disabled.");
             println!("   Push enforcement remains active — protected files still can't be pushed.");
-            println!("   Re-enable with: donttouch enable {repo}");
+            println!("   Re-enable with: donttouch enable");
         }
         Err(e) => {
             eprintln!("donttouch: {e}");
@@ -445,11 +395,9 @@ fn cmd_disable(repo: &str) {
     }
 }
 
-fn cmd_enable(repo: &str) {
-    let repo_path = Path::new(repo);
-
-    match set_enabled(repo_path, true) {
-        Ok(()) => println!("✅ Pre-commit checking enabled for {repo}"),
+fn cmd_enable() {
+    match set_enabled(Path::new("."), true) {
+        Ok(()) => println!("✅ Pre-commit checking enabled."),
         Err(e) => {
             eprintln!("donttouch: {e}");
             exit(1);
@@ -464,7 +412,7 @@ fn main() {
         Commands::CheckPush { remote, .. } => cmd_check_push(&remote),
         Commands::Status => cmd_status(),
         Commands::Init => cmd_init(),
-        Commands::Disable { repo } => cmd_disable(&repo),
-        Commands::Enable { repo } => cmd_enable(&repo),
+        Commands::Disable => cmd_disable(),
+        Commands::Enable => cmd_enable(),
     }
 }
