@@ -50,7 +50,7 @@ fn compile_patterns(raw: &[String]) -> Result<Vec<Pattern>, String> {
 
 fn get_staged_files() -> Result<Vec<String>, String> {
     let output = Command::new("git")
-        .args(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])
+        .args(["diff", "--cached", "--name-only", "--diff-filter=ACMRD"])
         .output()
         .map_err(|e| format!("Failed to run git: {e}"))?;
 
@@ -69,7 +69,7 @@ fn get_staged_files() -> Result<Vec<String>, String> {
 
 fn get_modified_files() -> Result<Vec<String>, String> {
     let output = Command::new("git")
-        .args(["diff", "--name-only", "--diff-filter=ACMR"])
+        .args(["diff", "--name-only", "--diff-filter=ACMRD"])
         .output()
         .map_err(|e| format!("Failed to run git: {e}"))?;
 
