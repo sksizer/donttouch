@@ -13,6 +13,7 @@
 ## v0.2 — Enable/Disable + Pre-Push Enforcement
 
 - [ ] `donttouch disable` — sets `enabled = false` in `.donttouch.toml`, pre-commit hook skips checking
+  - [ ] Must be run from OUTSIDE the git repo (prevents agents from disabling it while working in the repo)
 - [ ] `donttouch enable` — sets `enabled = true` (default)
 - [ ] Pre-push hook — always checks regardless of `enabled` flag. Scans all commits being pushed for protected file changes
 - [ ] `donttouch init` installs both pre-commit AND pre-push hooks

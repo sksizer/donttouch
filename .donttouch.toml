@@ -2,6 +2,7 @@
 # Protect files from being modified by AI coding agents and accidental commits.
 
 [protect]
+enabled = true
 # Glob patterns for files that should not be modified.
 # Uses gitignore-style patterns.
 patterns = [
