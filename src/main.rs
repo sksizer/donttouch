@@ -43,6 +43,11 @@ enum Command {
     },
     /// Re-enable protection (lock files, resume checks)
     Enable,
+    /// Remove donttouch from a directory (must run from outside target directory)
+    Remove {
+        /// Path to the directory containing .donttouch.toml
+        target: String,
+    },
 }
 
 // =============================================================================
@@ -144,7 +149,7 @@ fn handle_start(command: Command) -> State {
         // All other commands require an existing config
         cmd => {
             let (root, _is_remote) = match &cmd {
-                Command::Disable { target } | Command::Unlock { target } => {
+                Command::Disable { target } | Command::Unlock { target } | Command::Remove { target } => {
                     match assert_outside(target) {
                         Ok(p) => (p, true),
                         Err(e) => return State::Error { message: e },
@@ -196,6 +201,7 @@ fn dispatch_enabled(cmd: Command, config: ConfigFile, files: Vec<ProtectedFile>,
             message: "✅ Protection is already enabled.".into(),
         },
         Command::Disable { .. } => do_disable(&files, &root),
+        Command::Remove { .. } => do_remove(&files, &root),
         Command::Init => unreachable!(),
     }
 }
@@ -215,6 +221,7 @@ fn dispatch_disabled(cmd: Command, config: ConfigFile, files: Vec<ProtectedFile>
         Command::Disable { .. } => State::Done {
             message: "⏸️  Protection is already disabled.".into(),
         },
+        Command::Remove { .. } => do_remove(&files, &root),
         Command::Init => unreachable!(),
     }
 }
@@ -522,6 +529,42 @@ fn do_enable(files: &[ProtectedFile], root: &Path) -> State {
         out.push_str(&format!("   🔒 Locked {locked} file(s).\n"));
     }
     out.push_str("✅ Protection enabled.");
+
+    State::Done { message: out }
+}
+
+fn do_remove(files: &[ProtectedFile], root: &Path) -> State {
+    let mut out = String::new();
+    let mut unlocked = 0;
+
+    // Unlock all protected files
+    for f in files {
+        if f.readonly {
+            if set_file_readonly(&f.path, false).is_ok() {
+                out.push_str(&format!("   🔓 {}\n", f.path.display()));
+                unlocked += 1;
+            }
+        }
+    }
+
+    // Unlock and delete the config file
+    let config_path = root.join(".donttouch.toml");
+    if is_file_readonly(&config_path) {
+        let _ = set_file_readonly(&config_path, false);
+    }
+    match std::fs::remove_file(&config_path) {
+        Ok(()) => {
+            out.push_str(&format!("   🗑️  {}\n", config_path.display()));
+        }
+        Err(e) => {
+            out.push_str(&format!("   ❌ Failed to remove {}: {e}\n", config_path.display()));
+        }
+    }
+
+    if unlocked > 0 {
+        out.push_str(&format!("\n   Unlocked {unlocked} file(s)."));
+    }
+    out.push_str("\n✅ donttouch removed.");
 
     State::Done { message: out }
 }
