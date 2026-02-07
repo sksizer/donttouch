@@ -28,12 +28,18 @@ enum Command {
     Status,
     /// Make all protected files read-only
     Lock,
-    /// Restore write permissions on protected files
-    Unlock,
+    /// Restore write permissions (must run from outside target directory)
+    Unlock {
+        /// Path to the directory containing .donttouch.toml
+        target: String,
+    },
     /// Check if any protected files are writable (exits non-zero if so)
     Check,
-    /// Disable protection (unlock files, skip checks)
-    Disable,
+    /// Disable protection (must run from outside target directory)
+    Disable {
+        /// Path to the directory containing .donttouch.toml
+        target: String,
+    },
     /// Re-enable protection (lock files, resume checks)
     Enable,
 }
@@ -62,7 +68,7 @@ fn default_enabled() -> bool {
 // State Machine
 // =============================================================================
 
-/// The resolved state of donttouch in the current directory.
+/// The resolved state of donttouch in a directory.
 /// Derived from filesystem inspection — this is the single source of truth.
 enum State {
     /// No .donttouch.toml found — not initialized
@@ -72,12 +78,14 @@ enum State {
     Enabled {
         config: ConfigFile,
         files: Vec<ProtectedFile>,
+        root: PathBuf,
     },
 
     /// Config exists, protection is disabled
     Disabled {
         config: ConfigFile,
         files: Vec<ProtectedFile>,
+        root: PathBuf,
     },
 }
 
@@ -98,10 +106,10 @@ enum Transition {
 }
 
 impl State {
-    /// Inspect the current directory and derive the state.
-    fn resolve() -> Self {
-        // Check for config file
-        let content = match std::fs::read_to_string(".donttouch.toml") {
+    /// Inspect a directory and derive the state.
+    fn resolve(dir: &Path) -> Self {
+        let config_path = dir.join(".donttouch.toml");
+        let content = match std::fs::read_to_string(&config_path) {
             Ok(c) => c,
             Err(_) => return State::Uninitialized,
         };
@@ -109,7 +117,7 @@ impl State {
         let config: ConfigFile = match toml::from_str(&content) {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("donttouch: invalid .donttouch.toml: {e}");
+                eprintln!("donttouch: invalid {}: {e}", config_path.display());
                 exit(1);
             }
         };
@@ -127,12 +135,13 @@ impl State {
             })
             .collect();
 
-        let files = discover_files(&patterns);
+        let files = discover_files(dir, &patterns);
+        let root = dir.to_path_buf();
 
         if config.protect.enabled {
-            State::Enabled { config, files }
+            State::Enabled { config, files, root }
         } else {
-            State::Disabled { config, files }
+            State::Disabled { config, files, root }
         }
     }
 
@@ -146,9 +155,7 @@ impl State {
             ),
 
             // --- Status (valid in any initialized state) ---
-            (Command::Status, State::Uninitialized) => {
-                Transition::InvalidAction("No .donttouch.toml found. Run 'donttouch init' first.".into())
-            }
+            (Command::Status, State::Uninitialized) => no_config(),
             (Command::Status, State::Enabled { config, files, .. }) => do_status(config, files, true),
             (Command::Status, State::Disabled { config, files, .. }) => do_status(config, files, false),
 
@@ -159,10 +166,10 @@ impl State {
                 "⏸️  Protection is disabled. Run 'donttouch enable' first.".into(),
             ),
 
-            // --- Unlock ---
-            (Command::Unlock, State::Uninitialized) => no_config(),
-            (Command::Unlock, State::Enabled { files, .. }) => do_unlock(files),
-            (Command::Unlock, State::Disabled { files, .. }) => do_unlock(files),
+            // --- Unlock (requires outside check — handled before execute) ---
+            (Command::Unlock { .. }, State::Uninitialized) => no_config(),
+            (Command::Unlock { .. }, State::Enabled { files, .. }) => do_unlock(files),
+            (Command::Unlock { .. }, State::Disabled { files, .. }) => do_unlock(files),
 
             // --- Check ---
             (Command::Check, State::Uninitialized) => no_config(),
@@ -176,20 +183,66 @@ impl State {
             (Command::Enable, State::Enabled { .. }) => Transition::Ok(
                 "✅ Protection is already enabled.".into(),
             ),
-            (Command::Enable, State::Disabled { files, .. }) => do_enable(files),
+            (Command::Enable, State::Disabled { files, root, .. }) => do_enable(files, root),
 
-            // --- Disable ---
-            (Command::Disable, State::Uninitialized) => no_config(),
-            (Command::Disable, State::Disabled { .. }) => Transition::Ok(
+            // --- Disable (requires outside check — handled before execute) ---
+            (Command::Disable { .. }, State::Uninitialized) => no_config(),
+            (Command::Disable { .. }, State::Disabled { .. }) => Transition::Ok(
                 "⏸️  Protection is already disabled.".into(),
             ),
-            (Command::Disable, State::Enabled { files, .. }) => do_disable(files),
+            (Command::Disable { .. }, State::Enabled { files, root, .. }) => do_disable(files, root),
         }
     }
 }
 
 fn no_config() -> Transition {
     Transition::InvalidAction("No .donttouch.toml found. Run 'donttouch init' first.".into())
+}
+
+// =============================================================================
+// Outside-Directory Check
+// =============================================================================
+
+/// Verify that the current working directory is strictly outside the target
+/// directory. Uses canonical (real) paths to prevent symlink and ../.. tricks.
+fn assert_outside(target: &str) -> Result<PathBuf, String> {
+    // Resolve the target to its canonical (real, absolute, symlink-free) path
+    let canonical_target = std::fs::canonicalize(target)
+        .map_err(|e| format!("Cannot resolve target path '{target}': {e}"))?;
+
+    // Verify the target contains a .donttouch.toml
+    if !canonical_target.join(".donttouch.toml").exists() {
+        return Err(format!(
+            "No .donttouch.toml found in '{}'. Is this the right directory?",
+            canonical_target.display()
+        ));
+    }
+
+    // Get canonical cwd
+    let canonical_cwd = std::env::current_dir()
+        .and_then(|p| std::fs::canonicalize(p))
+        .map_err(|e| format!("Cannot resolve current directory: {e}"))?;
+
+    // Check: cwd must NOT be inside (or equal to) the target
+    if canonical_cwd.starts_with(&canonical_target) {
+        return Err(format!(
+            "🚫 This command must be run from OUTSIDE the target directory.\n\n\
+             Current directory: {}\n\
+             Target directory:  {}\n\n\
+             This restriction prevents AI coding agents from disabling protection\n\
+             while working inside the project.\n\n\
+             Try: cd {} && donttouch disable {}",
+            canonical_cwd.display(),
+            canonical_target.display(),
+            canonical_target
+                .parent()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "/tmp".into()),
+            canonical_target.display(),
+        ));
+    }
+
+    Ok(canonical_target)
 }
 
 // =============================================================================
@@ -327,8 +380,8 @@ fn do_check(files: &[ProtectedFile]) -> Transition {
     }
 }
 
-fn do_enable(files: &[ProtectedFile]) -> Transition {
-    if let Err(e) = write_enabled(true) {
+fn do_enable(files: &[ProtectedFile], root: &Path) -> Transition {
+    if let Err(e) = write_enabled(root, true) {
         return Transition::Error(e);
     }
 
@@ -351,8 +404,8 @@ fn do_enable(files: &[ProtectedFile]) -> Transition {
     Transition::Ok(out)
 }
 
-fn do_disable(files: &[ProtectedFile]) -> Transition {
-    if let Err(e) = write_enabled(false) {
+fn do_disable(files: &[ProtectedFile], root: &Path) -> Transition {
+    if let Err(e) = write_enabled(root, false) {
         return Transition::Error(e);
     }
 
@@ -379,14 +432,14 @@ fn do_disable(files: &[ProtectedFile]) -> Transition {
 // =============================================================================
 
 /// Walk the directory tree and find files matching any of the patterns.
-fn discover_files(patterns: &[Pattern]) -> Vec<ProtectedFile> {
+fn discover_files(root: &Path, patterns: &[Pattern]) -> Vec<ProtectedFile> {
     let mut results = Vec::new();
-    walk_dir(Path::new("."), patterns, &mut results);
+    walk_dir(root, root, patterns, &mut results);
     results.sort_by(|a, b| a.path.cmp(&b.path));
     results
 }
 
-fn walk_dir(dir: &Path, patterns: &[Pattern], results: &mut Vec<ProtectedFile>) {
+fn walk_dir(base: &Path, dir: &Path, patterns: &[Pattern], results: &mut Vec<ProtectedFile>) {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return,
@@ -402,15 +455,16 @@ fn walk_dir(dir: &Path, patterns: &[Pattern], results: &mut Vec<ProtectedFile>) 
             }
         }
 
-        let rel = path.strip_prefix("./").unwrap_or(&path);
+        // Path relative to the project root
+        let rel = path.strip_prefix(base).unwrap_or(&path);
         let rel_str = rel.to_string_lossy();
 
         if path.is_dir() {
-            walk_dir(&path, patterns, results);
+            walk_dir(base, &path, patterns, results);
         } else if patterns.iter().any(|p| p.matches(&rel_str)) {
             results.push(ProtectedFile {
-                path: rel.to_path_buf(),
-                readonly: is_file_readonly(rel),
+                path: path.clone(),
+                readonly: is_file_readonly(&path),
             });
         }
     }
@@ -456,10 +510,11 @@ fn set_file_readonly(path: &Path, readonly: bool) -> Result<(), String> {
         .map_err(|e| format!("Cannot set permissions on {}: {e}", path.display()))
 }
 
-/// Write the `enabled` flag to .donttouch.toml
-fn write_enabled(enabled: bool) -> Result<(), String> {
-    let content = std::fs::read_to_string(".donttouch.toml")
-        .map_err(|e| format!("Could not read .donttouch.toml: {e}"))?;
+/// Write the `enabled` flag to .donttouch.toml in the given root directory
+fn write_enabled(root: &Path, enabled: bool) -> Result<(), String> {
+    let config_path = root.join(".donttouch.toml");
+    let content = std::fs::read_to_string(&config_path)
+        .map_err(|e| format!("Could not read {}: {e}", config_path.display()))?;
 
     let new_content = if content.contains("enabled") {
         content
@@ -482,8 +537,8 @@ fn write_enabled(enabled: bool) -> Result<(), String> {
         lines.join("\n") + "\n"
     };
 
-    std::fs::write(".donttouch.toml", new_content)
-        .map_err(|e| format!("Failed to write .donttouch.toml: {e}"))
+    std::fs::write(&config_path, new_content)
+        .map_err(|e| format!("Failed to write {}: {e}", config_path.display()))
 }
 
 // =============================================================================
@@ -494,19 +549,37 @@ fn main() {
     let cli = Cli::parse();
     let _ = cli.ignoregit; // Reserved for future git integration
 
-    let state = State::resolve();
+    // Commands that require being outside the target directory
+    match &cli.command {
+        Command::Disable { target } | Command::Unlock { target } => {
+            let canonical_target = match assert_outside(target) {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("{e}");
+                    exit(1);
+                }
+            };
 
-    match state.execute(&cli.command) {
-        Transition::Ok(msg) => {
-            println!("{msg}");
+            let state = State::resolve(&canonical_target);
+            match state.execute(&cli.command) {
+                Transition::Ok(msg) => println!("{msg}"),
+                Transition::InvalidAction(msg) | Transition::Error(msg) => {
+                    eprintln!("{msg}");
+                    exit(1);
+                }
+            }
         }
-        Transition::InvalidAction(msg) => {
-            eprintln!("{msg}");
-            exit(1);
-        }
-        Transition::Error(msg) => {
-            eprintln!("{msg}");
-            exit(1);
+
+        // All other commands operate on cwd
+        _ => {
+            let state = State::resolve(Path::new("."));
+            match state.execute(&cli.command) {
+                Transition::Ok(msg) => println!("{msg}"),
+                Transition::InvalidAction(msg) | Transition::Error(msg) => {
+                    eprintln!("{msg}");
+                    exit(1);
+                }
+            }
         }
     }
 }
