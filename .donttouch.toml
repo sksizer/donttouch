@@ -1,0 +1,12 @@
+# donttouch configuration
+# Protect files from being modified by AI coding agents and accidental commits.
+
+[protect]
+# Glob patterns for files that should not be modified.
+# Uses gitignore-style patterns.
+patterns = [
+    ".env",
+    ".env.*",
+    "secrets/**",
+    "docker-compose.prod.yml",
+]

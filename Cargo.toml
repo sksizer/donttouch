@@ -1,0 +1,13 @@
+[package]
+name = "donttouch"
+version = "0.1.0"
+edition = "2021"
+description = "Protect files from being modified by AI coding agents and accidental commits"
+license = "MIT"
+repository = "https://github.com/sksizer/donttouch"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+glob = "0.3"
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }
