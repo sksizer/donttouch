@@ -106,43 +106,6 @@ fn get_modified_files() -> Result<Vec<String>, String> {
     Ok(files)
 }
 
-/// Get files changed in commits that would be pushed (compared to remote tracking branch)
-fn get_push_files(remote: &str) -> Result<Vec<String>, String> {
-    // Get current branch
-    let branch_output = Command::new("git")
-        .args(["rev-parse", "--abbrev-ref", "HEAD"])
-        .output()
-        .map_err(|e| format!("Failed to get current branch: {e}"))?;
-
-    let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_string();
-
-    // Try to find the remote tracking ref
-    let remote_ref = format!("{remote}/{branch}");
-
-    // Check if remote ref exists
-    let has_remote = Command::new("git")
-        .args(["rev-parse", "--verify", &remote_ref])
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
-
-    let output = if has_remote {
-        // Compare against remote tracking branch
-        Command::new("git")
-            .args(["diff", "--name-only", "--diff-filter=ACMRD", &format!("{remote_ref}..HEAD")])
-            .output()
-            .map_err(|e| format!("Failed to diff against remote: {e}"))?
-    } else {
-        // No remote ref yet (first push) — check all commits
-        Command::new("git")
-            .args(["diff", "--name-only", "--diff-filter=ACMRD", "--root", "HEAD"])
-            .output()
-            .map_err(|e| format!("Failed to diff: {e}"))?
-    };
-
-    Ok(parse_lines(&output.stdout))
-}
-
 fn parse_lines(bytes: &[u8]) -> Vec<String> {
     String::from_utf8_lossy(bytes)
         .lines()
@@ -243,7 +206,7 @@ fn cmd_check() {
     }
 }
 
-fn cmd_check_push(remote: &str) {
+fn cmd_check_push() {
     let config = match load_config() {
         Ok(c) => c,
         Err(e) => {
@@ -252,36 +215,16 @@ fn cmd_check_push(remote: &str) {
         }
     };
 
-    // NOTE: ignores `enabled` flag — push checking is ALWAYS active
-    let patterns = match compile_patterns(&config.protect.patterns) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("donttouch: {e}");
-            exit(1);
-        }
-    };
-
-    let files = match get_push_files(remote) {
-        Ok(f) => f,
-        Err(e) => {
-            eprintln!("donttouch: {e}");
-            exit(1);
-        }
-    };
-
-    let violations = find_violations(&files, &patterns);
-
-    if violations.is_empty() {
-        println!("✅ No protected files in outgoing commits.");
-    } else {
-        eprintln!("🚫 donttouch: push blocked! Protected files were modified in outgoing commits:\n");
-        for f in &violations {
-            eprintln!("   • {f}");
-        }
-        eprintln!("\nThese files are protected by .donttouch.toml.");
-        eprintln!("Push enforcement cannot be disabled.");
+    // If donttouch is disabled, block the push — force the user to re-enable first
+    if !config.protect.enabled {
+        eprintln!("🚫 donttouch: push blocked! Protection is currently disabled.\n");
+        eprintln!("   You must re-enable protection before pushing:");
+        eprintln!("   donttouch enable\n");
+        eprintln!("   This ensures protected files are re-checked before code leaves your machine.");
         exit(1);
     }
+
+    println!("✅ donttouch is enabled. Push allowed.");
 }
 
 fn cmd_status() {
@@ -384,8 +327,8 @@ fn cmd_init() {
 fn cmd_disable() {
     match set_enabled(Path::new("."), false) {
         Ok(()) => {
-            println!("⏸️  Pre-commit checking disabled.");
-            println!("   Push enforcement remains active — protected files still can't be pushed.");
+            println!("⏸️  Protection disabled. Commits won't be checked.");
+            println!("   ⚠️  You must run 'donttouch enable' before you can push.");
             println!("   Re-enable with: donttouch enable");
         }
         Err(e) => {
@@ -409,7 +352,7 @@ fn main() {
     let cli = Cli::parse();
     match cli.command {
         Commands::Check => cmd_check(),
-        Commands::CheckPush { remote, .. } => cmd_check_push(&remote),
+        Commands::CheckPush { .. } => cmd_check_push(),
         Commands::Status => cmd_status(),
         Commands::Init => cmd_init(),
         Commands::Disable => cmd_disable(),
