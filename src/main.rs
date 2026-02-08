@@ -1162,11 +1162,12 @@ fn do_remove(files: &[ProtectedFile], root: &Path, context: &Context) -> State {
 }
 
 fn do_why(file: &str, config: &ConfigFile) -> State {
-    let matching: Vec<&String> = config
+    let matching: Vec<(usize, &String)> = config
         .protect
         .patterns
         .iter()
-        .filter(|p| {
+        .enumerate()
+        .filter(|(_, p)| {
             Pattern::new(p)
                 .map(|pat| pat.matches(file))
                 .unwrap_or(false)
@@ -1178,9 +1179,29 @@ fn do_why(file: &str, config: &ConfigFile) -> State {
             message: format!("{file} is not protected by any pattern."),
         }
     } else {
+        // Read config to find the line number of the patterns array
+        let config_lines: Vec<String> = std::fs::read_to_string(".donttouch.toml")
+            .unwrap_or_default()
+            .lines()
+            .map(String::from)
+            .collect();
+
         let mut out = format!("{file} is protected by:\n");
-        for p in &matching {
-            out.push_str(&format!("   • {p}\n"));
+        for (idx, p) in &matching {
+            // Find the line number of this pattern in the config file
+            let line_num = config_lines
+                .iter()
+                .position(|l| {
+                    let trimmed = l.trim().trim_matches(',');
+                    trimmed == format!("\"{p}\"") || trimmed == format!("'{p}'")
+                })
+                .map(|n| n + 1); // 1-indexed
+
+            if let Some(ln) = line_num {
+                out.push_str(&format!("   • {p}  (.donttouch.toml:{ln})\n"));
+            } else {
+                out.push_str(&format!("   • {p}  (pattern #{})\n", idx + 1));
+            }
         }
         State::Done { message: out }
     }
