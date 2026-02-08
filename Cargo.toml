@@ -7,7 +7,7 @@ license = "MIT"
 repository = "https://github.com/sksizer/donttouch"
 homepage = "https://donttouch.sksizer.com"
 readme = "README.md"
-keywords = ["ai", "protection", "git", "cli", "coding-agent", "guard"]
+keywords = ["ai", "protection", "git", "cli", "coding-agent"]
 categories = ["command-line-utilities", "development-tools"]
 exclude = ["site/", "docs/", ".github/", "scripts"]
 
