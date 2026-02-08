@@ -4,7 +4,11 @@
 
 donttouch puts a lightweight guardrail around files, to keep AI coding assistants from modifying them.
 
-`donttouch` is a CLI tool that prevents AI coding assistants (Claude Code, Cursor, Copilot, Codex, etc.) from modifying files you want to keep safe. It uses a layered defense:
+Think of it as a sign and velvet rope around the files. It should be a clear signal to any AI agent: "Do not change this file."
+
+...but they can get around it. This should not be replacing code reviews or human oversight. It's just an experiment as an extra layer of protection and perhaps more importantly a stronger way to signal the invariants around files.
+
+
 
 1. **Filesystem permissions** — Makes files read-only via `chmod`
 2. **Git hooks** — Blocks commits and pushes that touch protected files
