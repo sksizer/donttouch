@@ -44,6 +44,11 @@
 - [x] Idempotent — `<!-- donttouch:managed -->` marker prevents duplicates
 - [x] `donttouch remove` strips injected lines from all agent files
 
+## v0.4.1 — CI & Documentation
+
+- [x] GitHub Actions CI workflow (check, fmt, clippy, test, cross-platform build)
+- [x] mdbook documentation site (`docs/`)
+
 ## v0.5 — GitHub Action
 
 - [ ] `donttouch ci` command — designed for CI, checks all changed files in PR/push
