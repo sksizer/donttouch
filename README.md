@@ -2,6 +2,13 @@
 
 (sort of) guards files from AI coding agents
 
+[![Crates.io](https://img.shields.io/crates/v/donttouch.svg)](https://crates.io/crates/donttouch)
+[![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://sksizer.github.io/donttouch/)
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+donttouch puts a lightweight guardrail around files, to keep AI coding assistants from modifying them.
+
+
 `donttouch` prevents AI assistants (Claude Code, Cursor, Copilot, Codex) from modifying files you want to keep safe — using filesystem permissions, git hooks, and agent instruction injection.
 
 ## Why?
