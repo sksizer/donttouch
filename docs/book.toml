@@ -1,6 +1,6 @@
 [book]
 title = "donttouch"
-description = "Protect files from AI coding agents"
+description = "(sorta) guard files from AI coding agents"
 authors = ["Kelly Sizer"]
 language = "en"
 src = "src"
