@@ -44,19 +44,14 @@
 - [x] Idempotent — `<!-- donttouch:managed -->` marker prevents duplicates
 - [x] `donttouch remove` strips injected lines from all agent files
 
-## v0.5 — `donttouch allow` (Temporary Bypass)
-
-- [ ] `donttouch allow -- <command>` — temporarily unlock, run command, re-lock
-- [ ] Scoped bypass without disabling protection entirely
-
-## v0.6 — GitHub Action
+## v0.5 — GitHub Action
 
 - [ ] `donttouch ci` command — designed for CI, checks all changed files in PR/push
 - [ ] Publish reusable GitHub Action (`uses: sksizer/donttouch-action@v1`)
 - [ ] Catches `--no-verify` bypasses at the PR level
 - [ ] Clear annotations on failing files
 
-## v0.7 — npm Wrapper / Distribution
+## v0.6 — npm Wrapper / Distribution
 
 - [ ] npm package (`npx donttouch init`) that downloads the correct platform binary
 - [ ] Publish to npm
