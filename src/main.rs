@@ -145,7 +145,10 @@ enum State {
     ToInit { context: Context },
 
     /// Config file written, prompting user for patterns
-    Initializing { config_path: PathBuf, context: Context },
+    Initializing {
+        config_path: PathBuf,
+        context: Context,
+    },
 
     /// Init complete, ask user if they want to lock
     EndInit { context: Context },
@@ -180,9 +183,10 @@ impl State {
             state = match state {
                 State::Start { command, ignoregit } => handle_start(command, ignoregit),
                 State::ToInit { context } => handle_to_init(context),
-                State::Initializing { config_path, context } => {
-                    handle_initializing(&config_path, context)
-                }
+                State::Initializing {
+                    config_path,
+                    context,
+                } => handle_initializing(&config_path, context),
                 State::EndInit { context } => handle_end_init(context),
                 State::OfferHooks { context } => handle_offer_hooks(context),
                 State::OfferInject { root } => handle_offer_inject(&root),
@@ -402,7 +406,10 @@ patterns = [
             };
         }
 
-        println!("\n📝 Saved {} pattern(s) to .donttouch.toml", patterns.len());
+        println!(
+            "\n📝 Saved {} pattern(s) to .donttouch.toml",
+            patterns.len()
+        );
     }
 
     State::EndInit { context }
@@ -441,25 +448,23 @@ fn handle_end_init(context: Context) -> State {
         let files = discover_files(Path::new("."), &patterns);
 
         if files.is_empty() {
-            println!("No files match the protected patterns. Add files and run 'donttouch lock' later.");
+            println!(
+                "No files match the protected patterns. Add files and run 'donttouch lock' later."
+            );
         } else {
             // Lock the files inline (don't return to state machine — we need to continue to hooks)
             let mut locked = 0;
             for f in &files {
-                if !f.readonly {
-                    if set_file_readonly(&f.path, true).is_ok() {
-                        println!("   🔒 {}", f.path.display());
-                        locked += 1;
-                    }
+                if !f.readonly && set_file_readonly(&f.path, true).is_ok() {
+                    println!("   🔒 {}", f.path.display());
+                    locked += 1;
                 }
             }
             // Lock config too
             let config_path = Path::new(".donttouch.toml");
-            if !is_file_readonly(config_path) {
-                if set_file_readonly(config_path, true).is_ok() {
-                    println!("   🔒 .donttouch.toml");
-                    locked += 1;
-                }
+            if !is_file_readonly(config_path) && set_file_readonly(config_path, true).is_ok() {
+                println!("   🔒 .donttouch.toml");
+                locked += 1;
             }
             if locked > 0 {
                 println!("\n✅ Locked {locked} file(s).");
@@ -668,11 +673,31 @@ struct AgentTarget {
 }
 
 const AGENT_TARGETS: &[AgentTarget] = &[
-    AgentTarget { path: "CLAUDE.md", create: false, cursor_mdc: false },
-    AgentTarget { path: "AGENTS.md", create: false, cursor_mdc: false },
-    AgentTarget { path: ".cursor/rules/donttouch.mdc", create: true, cursor_mdc: true },
-    AgentTarget { path: "codex.md", create: false, cursor_mdc: false },
-    AgentTarget { path: ".github/copilot-instructions.md", create: false, cursor_mdc: false },
+    AgentTarget {
+        path: "CLAUDE.md",
+        create: false,
+        cursor_mdc: false,
+    },
+    AgentTarget {
+        path: "AGENTS.md",
+        create: false,
+        cursor_mdc: false,
+    },
+    AgentTarget {
+        path: ".cursor/rules/donttouch.mdc",
+        create: true,
+        cursor_mdc: true,
+    },
+    AgentTarget {
+        path: "codex.md",
+        create: false,
+        cursor_mdc: false,
+    },
+    AgentTarget {
+        path: ".github/copilot-instructions.md",
+        create: false,
+        cursor_mdc: false,
+    },
 ];
 
 fn handle_offer_inject(root: &Path) -> State {
@@ -737,7 +762,10 @@ fn inject_agent_instructions(root: &Path, dry_run: bool) -> String {
 
             // Already has our marker — skip
             if content.contains(MARKER) {
-                out.push_str(&format!("   ✅ {} (already has instructions)\n", target.path));
+                out.push_str(&format!(
+                    "   ✅ {} (already has instructions)\n",
+                    target.path
+                ));
                 skipped += 1;
                 continue;
             }
@@ -762,24 +790,22 @@ fn inject_agent_instructions(root: &Path, dry_run: bool) -> String {
                     }
                 }
             }
-        } else if target.create {
-            if target.cursor_mdc {
-                if dry_run {
-                    out.push_str(&format!("   📝 Would create {}\n", target.path));
-                    injected += 1;
-                } else {
-                    // Create parent dirs
-                    if let Some(parent) = path.parent() {
-                        std::fs::create_dir_all(parent).ok();
+        } else if target.create && target.cursor_mdc {
+            if dry_run {
+                out.push_str(&format!("   📝 Would create {}\n", target.path));
+                injected += 1;
+            } else {
+                // Create parent dirs
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent).ok();
+                }
+                match std::fs::write(&path, CURSOR_MDC_CONTENT) {
+                    Ok(()) => {
+                        out.push_str(&format!("   📝 Created {}\n", target.path));
+                        injected += 1;
                     }
-                    match std::fs::write(&path, CURSOR_MDC_CONTENT) {
-                        Ok(()) => {
-                            out.push_str(&format!("   📝 Created {}\n", target.path));
-                            injected += 1;
-                        }
-                        Err(e) => {
-                            out.push_str(&format!("   ❌ Failed to create {}: {e}\n", target.path));
-                        }
+                    Err(e) => {
+                        out.push_str(&format!("   ❌ Failed to create {}: {e}\n", target.path));
                     }
                 }
             }
@@ -823,10 +849,7 @@ fn remove_agent_instructions(root: &Path) {
         }
 
         // Remove lines containing the marker
-        let new_lines: Vec<&str> = content
-            .lines()
-            .filter(|l| !l.contains(MARKER))
-            .collect();
+        let new_lines: Vec<&str> = content.lines().filter(|l| !l.contains(MARKER)).collect();
 
         // Clean up double blank lines left behind
         let new_content = new_lines.join("\n").trim_end().to_string() + "\n";
@@ -840,7 +863,12 @@ fn remove_agent_instructions(root: &Path) {
 // Actions (return next State)
 // =============================================================================
 
-fn do_status(config: &ConfigFile, files: &[ProtectedFile], enabled: bool, context: &Context) -> State {
+fn do_status(
+    config: &ConfigFile,
+    files: &[ProtectedFile],
+    enabled: bool,
+    context: &Context,
+) -> State {
     let mut out = String::new();
 
     if enabled {
@@ -1002,7 +1030,9 @@ fn do_check(files: &[ProtectedFile], root: &Path, context: &Context) -> State {
                 if !issues.is_empty() {
                     issues.push(String::new());
                 }
-                issues.push("Staged file violations (protected files in git staging area):".to_string());
+                issues.push(
+                    "Staged file violations (protected files in git staging area):".to_string(),
+                );
                 for f in &staged_violations {
                     issues.push(format!("   • {f}"));
                 }
@@ -1056,18 +1086,14 @@ fn do_enable(files: &[ProtectedFile], root: &Path) -> State {
     let mut locked = 0;
 
     for f in files {
-        if !f.readonly {
-            if set_file_readonly(&f.path, true).is_ok() {
-                locked += 1;
-            }
+        if !f.readonly && set_file_readonly(&f.path, true).is_ok() {
+            locked += 1;
         }
     }
 
     let config_path = root.join(".donttouch.toml");
-    if !is_file_readonly(&config_path) {
-        if set_file_readonly(&config_path, true).is_ok() {
-            locked += 1;
-        }
+    if !is_file_readonly(&config_path) && set_file_readonly(&config_path, true).is_ok() {
+        locked += 1;
     }
 
     if locked > 0 {
@@ -1083,11 +1109,9 @@ fn do_remove(files: &[ProtectedFile], root: &Path, context: &Context) -> State {
     let mut unlocked = 0;
 
     for f in files {
-        if f.readonly {
-            if set_file_readonly(&f.path, false).is_ok() {
-                out.push_str(&format!("   🔓 {}\n", f.path.display()));
-                unlocked += 1;
-            }
+        if f.readonly && set_file_readonly(&f.path, false).is_ok() {
+            out.push_str(&format!("   🔓 {}\n", f.path.display()));
+            unlocked += 1;
         }
     }
 
@@ -1142,10 +1166,8 @@ fn do_disable(files: &[ProtectedFile], root: &Path) -> State {
 
     let mut unlocked = 0;
     for f in files {
-        if f.readonly {
-            if set_file_readonly(&f.path, false).is_ok() {
-                unlocked += 1;
-            }
+        if f.readonly && set_file_readonly(&f.path, false).is_ok() {
+            unlocked += 1;
         }
     }
 
@@ -1176,7 +1198,7 @@ fn assert_outside(target: &str) -> Result<PathBuf, String> {
     }
 
     let canonical_cwd = std::env::current_dir()
-        .and_then(|p| std::fs::canonicalize(p))
+        .and_then(std::fs::canonicalize)
         .map_err(|e| format!("Cannot resolve current directory: {e}"))?;
 
     if canonical_cwd.starts_with(&canonical_target) {
@@ -1305,8 +1327,8 @@ fn is_file_readonly(path: &Path) -> bool {
 #[cfg(unix)]
 fn set_file_readonly(path: &Path, readonly: bool) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
-    let meta = std::fs::metadata(path)
-        .map_err(|e| format!("Cannot read {}: {e}", path.display()))?;
+    let meta =
+        std::fs::metadata(path).map_err(|e| format!("Cannot read {}: {e}", path.display()))?;
     let mut mode = meta.permissions().mode();
     if readonly {
         mode &= !0o222;
@@ -1319,8 +1341,8 @@ fn set_file_readonly(path: &Path, readonly: bool) -> Result<(), String> {
 
 #[cfg(not(unix))]
 fn set_file_readonly(path: &Path, readonly: bool) -> Result<(), String> {
-    let meta = std::fs::metadata(path)
-        .map_err(|e| format!("Cannot read {}: {e}", path.display()))?;
+    let meta =
+        std::fs::metadata(path).map_err(|e| format!("Cannot read {}: {e}", path.display()))?;
     let mut perms = meta.permissions();
     perms.set_readonly(readonly);
     std::fs::set_permissions(path, perms)
