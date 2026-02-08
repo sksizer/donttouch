@@ -51,6 +51,11 @@ enum Command {
         /// Path to the directory containing .donttouch.toml
         target: String,
     },
+    /// Show which pattern protects a given file
+    Why {
+        /// File path to check
+        file: String,
+    },
     /// Add agent instructions to coding agent config files
     Inject {
         /// Preview changes without writing
@@ -286,6 +291,7 @@ fn dispatch_enabled(
         Command::Disable { .. } => do_disable(&files, &root),
         Command::Remove { .. } => do_remove(&files, &root, &context),
         Command::Inject { dry_run } => do_inject(&root, dry_run),
+        Command::Why { ref file } => do_why(file, &config),
         Command::Init => unreachable!(),
     }
 }
@@ -314,6 +320,7 @@ fn dispatch_disabled(
         },
         Command::Remove { .. } => do_remove(&files, &root, &context),
         Command::Inject { dry_run } => do_inject(&root, dry_run),
+        Command::Why { ref file } => do_why(file, &config),
         Command::Init => unreachable!(),
     }
 }
@@ -1152,6 +1159,31 @@ fn do_remove(files: &[ProtectedFile], root: &Path, context: &Context) -> State {
     out.push_str("\n✅ donttouch removed.");
 
     State::Done { message: out }
+}
+
+fn do_why(file: &str, config: &ConfigFile) -> State {
+    let matching: Vec<&String> = config
+        .protect
+        .patterns
+        .iter()
+        .filter(|p| {
+            Pattern::new(p)
+                .map(|pat| pat.matches(file))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    if matching.is_empty() {
+        State::Done {
+            message: format!("{file} is not protected by any pattern."),
+        }
+    } else {
+        let mut out = format!("{file} is protected by:\n");
+        for p in &matching {
+            out.push_str(&format!("   • {p}\n"));
+        }
+        State::Done { message: out }
+    }
 }
 
 fn do_disable(files: &[ProtectedFile], root: &Path) -> State {
