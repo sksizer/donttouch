@@ -5,6 +5,11 @@ edition = "2021"
 description = "Protect files from being modified by AI coding agents and accidental commits"
 license = "MIT"
 repository = "https://github.com/sksizer/donttouch"
+homepage = "https://github.com/sksizer/donttouch"
+readme = "README.md"
+keywords = ["ai", "protection", "git", "cli", "coding-agent"]
+categories = ["command-line-utilities", "development-tools"]
+exclude = ["site/", "docs/", ".github/"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
