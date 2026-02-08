@@ -1,6 +1,8 @@
 # donttouch
 
-**Protect your files from AI coding agents.**
+**(sort of) guards files from AI coding agents**
+
+donttouch puts a lightweight guardrail around files, to keep AI coding assistants from modifying them.
 
 `donttouch` is a CLI tool that prevents AI coding assistants (Claude Code, Cursor, Copilot, Codex, etc.) from modifying files you want to keep safe. It uses a layered defense:
 
