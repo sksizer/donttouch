@@ -1,6 +1,6 @@
 # 🚫 donttouch
 
-Protect files from AI coding agents.
+(sort of) guards files from AI coding agents
 
 `donttouch` prevents AI assistants (Claude Code, Cursor, Copilot, Codex) from modifying files you want to keep safe — using filesystem permissions, git hooks, and agent instruction injection.
 
