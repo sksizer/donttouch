@@ -13,28 +13,31 @@ Think of it as a sign and velvet rope around the files. It should be a clear sig
 ...but they can get around it. This should not be replacing code reviews or human oversight. It's just an experiment as an extra layer of protection and perhaps more importantly a stronger way to signal the invariants around files.
 
 
-
-
-
-`donttouch` prevents AI assistants (Claude Code, Cursor, Copilot, Codex) from modifying files you want to keep safe — using filesystem permissions, git hooks, and agent instruction injection.
-
 ## Why?
 
 AI coding agents are powerful but sometimes overeager. They reformat configs, "fix" intentional code, and touch files that shouldn't change. `donttouch` lets you draw a hard line.
 
 ## Install
 
+**Via Cargo:**
 ```bash
 cargo install donttouch
 ```
 
-Or build from source:
+**Via Brew:**
+```bash
+brew install sksizer/tap/donttouch
+```
 
+**From Source:**    
 ```bash
 git clone https://github.com/sksizer/donttouch
 cd donttouch
 cargo install --path .
 ```
+
+**From Releases:**
+Download from the [Releases page](https://github.com/sksizer/donttouch/releases)
 
 ## Quick Start
 
