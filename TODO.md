@@ -49,6 +49,12 @@
 - [x] GitHub Actions CI workflow (check, fmt, clippy, test, cross-platform build)
 - [x] mdbook documentation site (`docs/`)
 
+## v0.4.2 — Simplify lock/unlock, remove improvements
+
+- [ ] Merge enable/disable into lock/unlock (unlock sets `enabled = false` + restores perms, lock sets `enabled = true` + read-only)
+- [ ] Remove standalone `enable` and `disable` commands
+- [ ] `donttouch remove` offers to back up `.donttouch.toml` as `.donttouch.toml.bak`
+
 ## v0.5 — GitHub Action
 
 - [ ] `donttouch ci` command — designed for CI, checks all changed files in PR/push
