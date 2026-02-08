@@ -51,6 +51,12 @@ enum Command {
         /// Path to the directory containing .donttouch.toml
         target: String,
     },
+    /// Add agent instructions to coding agent config files
+    Inject {
+        /// Preview changes without writing
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 // =============================================================================
@@ -147,6 +153,9 @@ enum State {
     /// Ask user if they want to install git hooks (git context only)
     OfferHooks { context: Context },
 
+    /// Ask user if they want to inject agent instructions
+    OfferInject { root: PathBuf },
+
     /// Terminal: output a message and exit successfully
     Done { message: String },
 
@@ -176,6 +185,7 @@ impl State {
                 }
                 State::EndInit { context } => handle_end_init(context),
                 State::OfferHooks { context } => handle_offer_hooks(context),
+                State::OfferInject { root } => handle_offer_inject(&root),
                 State::Done { message } => {
                     println!("{message}");
                     State::End { code: 0 }
@@ -271,6 +281,7 @@ fn dispatch_enabled(
         },
         Command::Disable { .. } => do_disable(&files, &root),
         Command::Remove { .. } => do_remove(&files, &root, &context),
+        Command::Inject { dry_run } => do_inject(&root, dry_run),
         Command::Init => unreachable!(),
     }
 }
@@ -298,6 +309,7 @@ fn dispatch_disabled(
             message: "⏸️  Protection is already disabled.".into(),
         },
         Command::Remove { .. } => do_remove(&files, &root, &context),
+        Command::Inject { dry_run } => do_inject(&root, dry_run),
         Command::Init => unreachable!(),
     }
 }
@@ -457,12 +469,12 @@ fn handle_end_init(context: Context) -> State {
         println!("Ok. Run 'donttouch lock' when you're ready.");
     }
 
-    // If git context, offer to install hooks
+    // If git context, offer to install hooks, then inject
     if context.is_git() {
         State::OfferHooks { context }
     } else {
-        State::Done {
-            message: String::new(),
+        State::OfferInject {
+            root: PathBuf::from("."),
         }
     }
 }
@@ -481,11 +493,13 @@ fn handle_offer_hooks(context: Context) -> State {
         }
     };
 
+    let next = State::OfferInject {
+        root: PathBuf::from("."),
+    };
+
     if hooks_installed {
         println!("\n✅ Git hooks already installed.");
-        return State::Done {
-            message: String::new(),
-        };
+        return next;
     }
 
     if has_husky {
@@ -506,13 +520,11 @@ fn handle_offer_hooks(context: Context) -> State {
         } else {
             install_git_hooks();
         }
-        State::Done {
-            message: "✅ Git hooks installed.".into(),
-        }
+        println!("✅ Git hooks installed.");
+        next
     } else {
-        State::Done {
-            message: "Ok. Run 'donttouch init' in a git repo to install hooks later.".into(),
-        }
+        println!("Ok. Run 'donttouch init' in a git repo to install hooks later.");
+        next
     }
 }
 
@@ -632,6 +644,197 @@ fn make_executable(path: &Path) {
 
 #[cfg(not(unix))]
 fn make_executable(_path: &Path) {}
+
+// =============================================================================
+// Agent Instruction Injection
+// =============================================================================
+
+const MARKER: &str = "<!-- donttouch:managed -->";
+const INSTRUCTION: &str = "<!-- donttouch:managed --> ⚠️ donttouch is active in this project. Files marked read-only are protected — do not modify, rename, or delete them. Run `donttouch status` to see which files are protected.";
+
+const CURSOR_MDC_CONTENT: &str = r#"---
+description: donttouch file protection
+---
+<!-- donttouch:managed --> ⚠️ donttouch is active in this project. Files marked read-only are protected — do not modify, rename, or delete them. Run `donttouch status` to see which files are protected.
+"#;
+
+/// Agent config files we look for (path relative to root, whether to append or create).
+struct AgentTarget {
+    path: &'static str,
+    /// If true, create the file if it doesn't exist. If false, only inject into existing files.
+    create: bool,
+    /// If true, use the special Cursor MDC format
+    cursor_mdc: bool,
+}
+
+const AGENT_TARGETS: &[AgentTarget] = &[
+    AgentTarget { path: "CLAUDE.md", create: false, cursor_mdc: false },
+    AgentTarget { path: "AGENTS.md", create: false, cursor_mdc: false },
+    AgentTarget { path: ".cursor/rules/donttouch.mdc", create: true, cursor_mdc: true },
+    AgentTarget { path: "codex.md", create: false, cursor_mdc: false },
+    AgentTarget { path: ".github/copilot-instructions.md", create: false, cursor_mdc: false },
+];
+
+fn handle_offer_inject(root: &Path) -> State {
+    // Check if any agent files exist (or cursor dir exists)
+    let has_targets = AGENT_TARGETS.iter().any(|t| {
+        let path = root.join(t.path);
+        if t.create {
+            // For cursor, check if .cursor dir exists or if we should offer anyway
+            true
+        } else {
+            path.exists()
+        }
+    });
+
+    if !has_targets {
+        return State::Done {
+            message: String::new(),
+        };
+    }
+
+    print!("\nAdd agent instructions to coding agent config files? [Y/n] ");
+    io::stdout().flush().ok();
+
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer).ok();
+    let answer = answer.trim().to_lowercase();
+
+    if answer.is_empty() || answer == "y" || answer == "yes" {
+        let result = inject_agent_instructions(root, false);
+        State::Done { message: result }
+    } else {
+        State::Done {
+            message: "Ok. Run 'donttouch inject' to add agent instructions later.".into(),
+        }
+    }
+}
+
+fn do_inject(root: &Path, dry_run: bool) -> State {
+    let result = inject_agent_instructions(root, dry_run);
+    if dry_run {
+        State::Done {
+            message: format!("Dry run:\n{result}"),
+        }
+    } else {
+        State::Done { message: result }
+    }
+}
+
+fn inject_agent_instructions(root: &Path, dry_run: bool) -> String {
+    let mut out = String::new();
+    let mut injected = 0;
+    let mut skipped = 0;
+
+    for target in AGENT_TARGETS {
+        let path = root.join(target.path);
+
+        if path.exists() {
+            let content = match std::fs::read_to_string(&path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            // Already has our marker — skip
+            if content.contains(MARKER) {
+                out.push_str(&format!("   ✅ {} (already has instructions)\n", target.path));
+                skipped += 1;
+                continue;
+            }
+
+            if dry_run {
+                out.push_str(&format!("   📝 Would inject into {}\n", target.path));
+                injected += 1;
+            } else {
+                // Append instruction
+                let new_content = if content.ends_with('\n') {
+                    format!("{content}\n{INSTRUCTION}\n")
+                } else {
+                    format!("{content}\n\n{INSTRUCTION}\n")
+                };
+                match std::fs::write(&path, new_content) {
+                    Ok(()) => {
+                        out.push_str(&format!("   📝 Injected into {}\n", target.path));
+                        injected += 1;
+                    }
+                    Err(e) => {
+                        out.push_str(&format!("   ❌ Failed to write {}: {e}\n", target.path));
+                    }
+                }
+            }
+        } else if target.create {
+            if target.cursor_mdc {
+                if dry_run {
+                    out.push_str(&format!("   📝 Would create {}\n", target.path));
+                    injected += 1;
+                } else {
+                    // Create parent dirs
+                    if let Some(parent) = path.parent() {
+                        std::fs::create_dir_all(parent).ok();
+                    }
+                    match std::fs::write(&path, CURSOR_MDC_CONTENT) {
+                        Ok(()) => {
+                            out.push_str(&format!("   📝 Created {}\n", target.path));
+                            injected += 1;
+                        }
+                        Err(e) => {
+                            out.push_str(&format!("   ❌ Failed to create {}: {e}\n", target.path));
+                        }
+                    }
+                }
+            }
+        }
+        // If file doesn't exist and create is false, silently skip
+    }
+
+    if injected > 0 {
+        out.push_str(&format!("\n✅ Injected into {injected} file(s)."));
+    } else if skipped > 0 {
+        out.push_str("\n✅ All agent files already have instructions.");
+    } else {
+        out.push_str("No agent config files found to inject into.");
+    }
+
+    out
+}
+
+/// Remove donttouch instructions from all agent files
+fn remove_agent_instructions(root: &Path) {
+    for target in AGENT_TARGETS {
+        let path = root.join(target.path);
+        if !path.exists() {
+            continue;
+        }
+
+        let content = match std::fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        if !content.contains(MARKER) {
+            continue;
+        }
+
+        if target.cursor_mdc && target.create {
+            // If this is our created file, just delete it
+            let _ = std::fs::remove_file(&path);
+            println!("   🗑️  Removed {}", target.path);
+            continue;
+        }
+
+        // Remove lines containing the marker
+        let new_lines: Vec<&str> = content
+            .lines()
+            .filter(|l| !l.contains(MARKER))
+            .collect();
+
+        // Clean up double blank lines left behind
+        let new_content = new_lines.join("\n").trim_end().to_string() + "\n";
+
+        let _ = std::fs::write(&path, new_content);
+        println!("   ✅ Removed donttouch instruction from {}", target.path);
+    }
+}
 
 // =============================================================================
 // Actions (return next State)
@@ -915,6 +1118,9 @@ fn do_remove(files: &[ProtectedFile], root: &Path, context: &Context) -> State {
             remove_hook_donttouch(&root.join(".git/hooks/pre-push"), "pre-push");
         }
     }
+
+    // Clean up agent instructions
+    remove_agent_instructions(root);
 
     if unlocked > 0 {
         out.push_str(&format!("\n   Unlocked {unlocked} file(s)."));
