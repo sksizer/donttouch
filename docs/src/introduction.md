@@ -37,7 +37,7 @@ donttouch inject      # Add rules to agent config files
 donttouch status      # See what's protected
 ```
 
-To temporarily unlock (from outside the project):
+To edit protected files (from outside the project):
 
 ```bash
 cd ..
@@ -46,3 +46,5 @@ donttouch unlock ./my-project
 cd my-project
 donttouch lock
 ```
+
+Note: `unlock` also disables protection, so pre-push hooks will block until you `lock` again. This prevents accidentally pushing with protection off.

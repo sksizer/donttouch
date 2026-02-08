@@ -2,7 +2,7 @@
 
 ## How Locking Works
 
-`donttouch lock` sets filesystem permissions to read-only on all files matching your patterns. Execute bits are preserved (so scripts stay executable).
+`donttouch lock` sets filesystem permissions to read-only on all files matching your patterns and marks protection as enabled in the config. Execute bits are preserved (so scripts stay executable).
 
 ```bash
 # Before lock
@@ -22,7 +22,7 @@ The `.donttouch.toml` config file is also locked to prevent agents from modifyin
 donttouch lock
 ```
 
-No flags needed. Locks all files matching patterns in `.donttouch.toml`.
+No flags needed. Locks all files matching patterns in `.donttouch.toml` and sets `enabled = true`.
 
 ## Unlock
 
@@ -32,7 +32,7 @@ cd ..
 donttouch unlock ./my-project
 ```
 
-Restores write permissions on all protected files and the config file.
+Restores write permissions on all protected files, the config file, and sets `enabled = false`. This means git hooks (pre-push) will block pushes until you re-lock — preventing you from accidentally pushing with protection turned off.
 
 ### Why Outside-Only?
 
@@ -40,20 +40,17 @@ AI coding agents execute commands from within your project directory. By requiri
 
 This also prevents symlink and path traversal tricks (`../project`, `/proc/self/cwd`, etc.) thanks to `std::fs::canonicalize()`.
 
-## Disable / Enable
-
-`disable` is like `unlock` but also sets `enabled = false` in the config:
+## Typical Workflow
 
 ```bash
+# Unlock from outside the project
 cd ..
-donttouch disable ./my-project
-```
+donttouch unlock ./my-project
 
-`enable` re-locks and sets `enabled = true`:
-
-```bash
+# Make your changes
 cd my-project
-donttouch enable
-```
+vim config.toml
 
-The difference matters for git hooks — `check-push` blocks pushes when protection is disabled, ensuring you don't accidentally push with protection turned off.
+# Re-lock when done
+donttouch lock
+```

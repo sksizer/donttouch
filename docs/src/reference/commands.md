@@ -9,22 +9,13 @@ Interactive setup wizard. Creates `.donttouch.toml`, optionally locks files, ins
 
 ## `donttouch lock`
 
-Set protected files to read-only. Also locks `.donttouch.toml`.
+Set protected files to read-only and set `enabled = true` in config. Also locks `.donttouch.toml`.
 
 ## `donttouch unlock <target>`
 
-Restore write permissions on protected files. **Must be run from outside the target directory.**
+Restore write permissions on protected files and set `enabled = false`. **Must be run from outside the target directory.**
 
-**Arguments:**
-- `target` — Path to the project directory
-
-## `donttouch enable`
-
-Set `enabled = true` in config and lock files. Run from inside the project.
-
-## `donttouch disable <target>`
-
-Set `enabled = false` and unlock files. **Must be run from outside the target directory.**
+Pre-push hooks will block pushes until you re-lock.
 
 **Arguments:**
 - `target` — Path to the project directory

@@ -23,7 +23,7 @@ Hooks integrate with Husky if present.
 
 ## The Outside-Directory Rule
 
-The critical security property: `unlock`, `disable`, and `remove` must be called from **outside** the project directory. Since AI agents execute from within the project, they cannot bypass protection.
+The critical security property: `unlock` and `remove` must be called from **outside** the project directory. Since AI agents execute from within the project, they cannot bypass protection.
 
 This is enforced via `std::fs::canonicalize()` on both the current working directory and the target path, preventing symlink tricks and path traversal.
 

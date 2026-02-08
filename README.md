@@ -66,10 +66,8 @@ Three layers of defense:
 | Command | Description |
 |---------|-------------|
 | `donttouch init` | Interactive setup wizard |
-| `donttouch lock` | Make protected files read-only |
-| `donttouch unlock <path>` | Restore write permissions* |
-| `donttouch enable` | Re-enable and lock |
-| `donttouch disable <path>` | Disable and unlock* |
+| `donttouch lock` | Enable protection + make files read-only |
+| `donttouch unlock <path>` | Disable protection + restore write permissions* |
 | `donttouch check` | Verify protection (CI-friendly) |
 | `donttouch status` | Show current state |
 | `donttouch inject` | Add agent instructions |

@@ -45,12 +45,9 @@ The `.donttouch.toml` file itself is always protected when you run `lock`. This 
 ## Enabled Flag
 
 When `enabled = false`:
-- `lock` is a no-op
 - `check` passes (no enforcement)
-- Pre-push hook blocks (forces you to re-enable before pushing)
+- Pre-push hook blocks (forces you to re-lock before pushing)
 
-Toggle with:
-```bash
-donttouch enable    # Sets enabled=true, locks files
-donttouch disable   # Sets enabled=false, unlocks files (run from outside project)
-```
+The flag is managed automatically:
+- `donttouch lock` sets `enabled = true`
+- `donttouch unlock` sets `enabled = false`
