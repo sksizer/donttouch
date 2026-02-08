@@ -1,0 +1,20 @@
+#!/bin/sh
+# donttouch development pre-commit hook
+# Install: cp hooks/pre-commit .git/hooks/pre-commit
+
+set -e
+
+. "$HOME/.cargo/env" 2>/dev/null
+
+echo "Running pre-commit checks..."
+
+echo "  cargo fmt..."
+cargo fmt --all -- --check || { echo "❌ Format check failed. Run 'cargo fmt' to fix."; exit 1; }
+
+echo "  cargo clippy..."
+cargo clippy -- -D warnings || { echo "❌ Clippy failed."; exit 1; }
+
+echo "  cargo test..."
+cargo test || { echo "❌ Tests failed."; exit 1; }
+
+echo "✅ All pre-commit checks passed."
