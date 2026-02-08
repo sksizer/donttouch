@@ -97,7 +97,7 @@ jobs:
           files: artifacts/*
 
   deploy-site:
-    name: Deploy marketing site
+    name: Deploy site
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -106,12 +106,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Install & build
-        run: |
-          cd site
-          npm ci
-          npx astro build
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
