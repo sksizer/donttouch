@@ -1,12 +1,19 @@
 # 🚫 donttouch
 
-(sort of) guards files from AI coding agents
+**(sort of) guards files from AI coding agents**
 
 [![Crates.io](https://img.shields.io/crates/v/donttouch.svg)](https://crates.io/crates/donttouch)
 [![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://sksizer.github.io/donttouch/)
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 donttouch puts a lightweight guardrail around files, to keep AI coding assistants from modifying them.
+
+Think of it as a sign and velvet rope around the files. It should be a clear signal to any AI agent: "Do not change this file."
+
+...but they can get around it. This should not be replacing code reviews or human oversight. It's just an experiment as an extra layer of protection and perhaps more importantly a stronger way to signal the invariants around files.
+
+
+
 
 
 `donttouch` prevents AI assistants (Claude Code, Cursor, Copilot, Codex) from modifying files you want to keep safe — using filesystem permissions, git hooks, and agent instruction injection.
