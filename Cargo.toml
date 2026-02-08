@@ -2,14 +2,14 @@
 name = "donttouch"
 version = "0.1.6"
 edition = "2021"
-description = "Protect files from being modified by AI coding agents and accidental commits"
+description = "Add a guard to keep particular files from being modified by AI coding agents and accidental commits"
 license = "MIT"
 repository = "https://github.com/sksizer/donttouch"
-homepage = "https://github.com/sksizer/donttouch"
+homepage = "https://donttouch.sksizer.com"
 readme = "README.md"
-keywords = ["ai", "protection", "git", "cli", "coding-agent"]
+keywords = ["ai", "protection", "git", "cli", "coding-agent", "guard"]
 categories = ["command-line-utilities", "development-tools"]
-exclude = ["site/", "docs/", ".github/"]
+exclude = ["site/", "docs/", ".github/", "scripts"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
