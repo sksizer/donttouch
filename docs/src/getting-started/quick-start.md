@@ -2,107 +2,67 @@
 
 ## 1. Initialize
 
-Navigate to your project directory and run:
-
 ```bash
+cd your-project
 donttouch init
 ```
 
-This will:
-- Create a `.donttouch.toml` config file
-- Prompt you for file patterns to protect
-- Ask if you want to lock the files immediately
-- In git repos: offer to install pre-commit and pre-push hooks
-- Offer to inject instructions into AI agent config files
+This starts an interactive wizard that:
+- Creates `.donttouch.toml` with your file patterns
+- Optionally locks files immediately
+- Offers to install git hooks (if in a git repo)
+- Offers to inject agent instructions
 
-## 2. Example Session
+## 2. Protect Files
 
-```
-$ cd my-project
-$ donttouch init
+Define patterns in `.donttouch.toml`:
 
-✅ Created .donttouch.toml
-
-Add file patterns to protect (glob syntax, one per line).
-Examples: .env, secrets/**, docker-compose.prod.yml
-Press Enter on an empty line when done.
-
-pattern> .env
-   ✅ Added: .env
-pattern> .env.*
-   ✅ Added: .env.*
-pattern> secrets/**
-   ✅ Added: secrets/**
-pattern>
-
-📝 Saved 3 pattern(s) to .donttouch.toml
-
-Lock protected files now? [Y/n] y
-   🔒 ./.env
-   🔒 ./.env.prod
-   🔒 ./secrets/api.key
-   🔒 .donttouch.toml
-
-✅ Locked 4 file(s).
-
-Install git hooks (pre-commit + pre-push)? [Y/n] y
-   ✅ Installed pre-commit hook.
-   ✅ Installed pre-push hook.
-✅ Git hooks installed.
-
-Add agent instructions to coding agent config files? [Y/n] y
-   📝 Injected into CLAUDE.md
-   📝 Created .cursor/rules/donttouch.mdc
-
-✅ Injected into 2 file(s).
+```toml
+[protect]
+enabled = true
+patterns = [
+    "*.toml",
+    "migrations/**",
+    "README.md",
+]
 ```
 
-## 3. Check Status
+Then lock them:
 
 ```bash
-$ donttouch status
-
-🔒 Protection: enabled
-📁 Context: git repository
-🪝 Hooks: installed
-
-Patterns:
-   .env
-   .env.*
-   secrets/**
-
-Protected files:
-   🔒 read-only  ./.env
-   🔒 read-only  ./.env.prod
-   🔒 read-only  ./secrets/api.key
+donttouch lock
 ```
 
-## 4. What Happens When an Agent Tries
+## 3. Verify
 
 ```bash
-$ echo "HACK" >> .env
-bash: .env: Permission denied
+donttouch status
 ```
 
-The file is read-only. The agent physically cannot modify it.
+Shows all protected files, their lock state, git hook status, and context.
 
-## 5. When You Need to Edit
-
-From **outside** the project directory:
+## 4. Check Protection
 
 ```bash
-$ cd ..
-$ donttouch disable ./my-project
-   🔓 Unlocked 3 file(s).
-🔓 Protection disabled.
-   ⚠️  You must run 'donttouch enable' before you can push.
+donttouch check
 ```
 
-Make your changes, then re-enable:
+Returns exit code 0 if all files are properly locked, non-zero otherwise. Use in CI or git hooks.
+
+## Working With Protected Files
+
+When *you* need to edit a protected file, unlock from **outside** the project:
 
 ```bash
-$ cd my-project
-$ donttouch enable
-   🔒 Locked 3 file(s).
-✅ Protection enabled.
+cd ..
+donttouch unlock ./your-project
 ```
+
+Make your changes, then re-lock:
+
+```bash
+cd your-project
+donttouch lock
+```
+
+The outside-directory requirement is the key security feature — AI agents running inside your project directory cannot unlock files.

@@ -2,27 +2,27 @@
 
 ## From Source (Cargo)
 
-If you have Rust installed:
-
 ```bash
 cargo install donttouch
 ```
 
-## From Source (Build)
+## From GitHub
 
 ```bash
-git clone https://github.com/sksizer/donttouch.git
+git clone https://github.com/sksizer/donttouch
 cd donttouch
-cargo build --release
+cargo install --path .
 ```
 
-The binary will be at `target/release/donttouch`. Copy it to a directory in your `PATH`:
+## npm (coming soon)
 
 ```bash
-cp target/release/donttouch ~/.local/bin/
+npx donttouch init
 ```
 
-## Verify Installation
+The npm package will download the appropriate binary for your platform.
+
+## Verify
 
 ```bash
 donttouch --version

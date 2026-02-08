@@ -7,20 +7,21 @@
 - [Installation](./getting-started/installation.md)
 - [Quick Start](./getting-started/quick-start.md)
 
-# Usage
+# User Guide
 
-- [Commands](./usage/commands.md)
-- [Configuration](./usage/configuration.md)
-- [File Permissions](./usage/file-permissions.md)
-- [Git Integration](./usage/git-integration.md)
-- [Agent Instructions](./usage/agent-instructions.md)
-
-# Concepts
-
-- [State Machine](./concepts/state-machine.md)
-- [Security Model](./concepts/security-model.md)
+- [Configuration](./guide/configuration.md)
+- [Locking & Unlocking](./guide/locking.md)
+- [Git Integration](./guide/git-integration.md)
+- [Agent Instructions](./guide/agent-instructions.md)
+- [CI / GitHub Actions](./guide/ci.md)
 
 # Reference
 
-- [CLI Reference](./reference/cli.md)
-- [FAQ](./reference/faq.md)
+- [CLI Commands](./reference/commands.md)
+- [Config File](./reference/config.md)
+- [How It Works](./reference/how-it-works.md)
+
+# Development
+
+- [Contributing](./development/contributing.md)
+- [Architecture](./development/architecture.md)
