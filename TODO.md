@@ -4,42 +4,50 @@
 
 - [x] Project scaffolding (Rust + clap CLI)
 - [x] `.donttouch.toml` config format (TOML with `[protect]` section)
-- [ ] Parse `.donttouch.toml` and load glob patterns
-- [ ] `donttouch check` — compare staged files (`git diff --cached --name-only`) against patterns, exit non-zero on violations
-- [ ] `donttouch init` — install pre-commit hook into `.git/hooks/` (standalone mode)
-- [ ] `donttouch status` — show protected files and any with uncommitted changes
-- [ ] Basic error messages with file list on violation
+- [x] Parse `.donttouch.toml` and load glob patterns
+- [x] `donttouch check` — verify protected files are read-only, exit non-zero on violations
+- [x] `donttouch init` — interactive setup (create config, prompt patterns, offer lock)
+- [x] `donttouch status` — show protected files, lock state, context info
+- [x] `donttouch lock` — make protected files + config read-only (preserves execute bits)
+- [x] `donttouch unlock <target>` — restore write permissions (must run from outside directory)
+- [x] `donttouch remove <target>` — uninstall donttouch (must run from outside directory)
+- [x] `.donttouch.toml` itself is locked/unlocked with protected files
+- [x] Enum-based state machine architecture
+- [x] Delete detection (ACMRD filter)
+- [x] Symlink and `../..` traversal protection via canonical paths
 
 ## v0.2 — Enable/Disable + Pre-Push Enforcement
 
-- [x] `donttouch disable` — sets `enabled = false` in `.donttouch.toml`, pre-commit hook skips checking
-- [x] `donttouch enable` — sets `enabled = true` (default)
-- [x] Pre-push hook — always checks regardless of `enabled` flag. Scans all commits being pushed for protected file changes
-- [x] `donttouch init` installs both pre-commit AND pre-push hooks
-- [x] Clear messaging: "pre-commit checking disabled, but push enforcement is always active"
+- [x] `donttouch disable <target>` — unlocks files, sets `enabled = false` (must run from outside)
+- [x] `donttouch enable` — relocks files, sets `enabled = true`
+- [x] Pre-push hook blocks push when protection is disabled
+- [x] `donttouch check-push` command for pre-push hook
 
-## v0.3 — Husky Integration
+## v0.3 — Git + Husky Integration
 
-- [ ] Detect existing Husky setup (`.husky/` dir)
-- [ ] `donttouch init --husky` — plug into Husky's pre-commit instead of installing standalone hook
-- [ ] Graceful fallback: works with or without Husky
+- [x] `Context` enum: `Plain` | `Git { has_husky, hooks_installed }`
+- [x] Auto-detect git repo and Husky presence
+- [x] `--ignoregit` flag to force plain directory mode
+- [x] `donttouch init` offers hook installation in git context
+- [x] Husky detection: installs into `.husky/` if present, `.git/hooks/` otherwise
+- [x] `donttouch check` also detects staged protected files in git context
+- [x] `donttouch status` shows context and hook status
+- [x] `donttouch remove` cleans up hooks (preserves other hook content)
 
-## v0.4 — File Permissions Layer
+## v0.4 — Agent Instruction Injection
 
-- [ ] `donttouch lock` — `chmod a-w` on all protected files (prevents writes before commit stage)
-- [ ] `donttouch unlock` — restore write permissions (for intentional human edits)
+- [x] `donttouch inject` — add instruction line to agent config files
+- [x] `donttouch inject --dry-run` — preview without writing
+- [x] Offered during `init` flow (after hooks)
+- [x] Targets: CLAUDE.md, AGENTS.md, .cursor/rules/donttouch.mdc, codex.md, .github/copilot-instructions.md
+- [x] Creates `.cursor/rules/donttouch.mdc` (Cursor per-rule file format)
+- [x] Idempotent — `<!-- donttouch:managed -->` marker prevents duplicates
+- [x] `donttouch remove` strips injected lines from all agent files
+
+## v0.5 — `donttouch allow` (Temporary Bypass)
+
 - [ ] `donttouch allow -- <command>` — temporarily unlock, run command, re-lock
-
-## v0.5 — Agent Instruction Injection
-
-- [ ] `donttouch inject` — detect agent config files in repo and add "do not modify" instructions
-  - [ ] `CLAUDE.md` (Claude Code)
-  - [ ] `AGENTS.md` (multi-agent standard)
-  - [ ] `.cursor/rules/*.mdc` (Cursor)
-  - [ ] `codex.md` / `.codex/` (OpenAI Codex CLI)
-  - [ ] `.github/copilot-instructions.md` (GitHub Copilot)
-- [ ] Idempotent — re-running doesn't duplicate instructions
-- [ ] `donttouch inject --dry-run` — preview what would be added
+- [ ] Scoped bypass without disabling protection entirely
 
 ## v0.6 — GitHub Action
 
@@ -48,17 +56,17 @@
 - [ ] Catches `--no-verify` bypasses at the PR level
 - [ ] Clear annotations on failing files
 
-## v0.7 — npm Wrapper
+## v0.7 — npm Wrapper / Distribution
 
 - [ ] npm package (`npx donttouch init`) that downloads the correct platform binary
 - [ ] Publish to npm
 - [ ] Support: macOS (arm64, x64), Linux (x64, arm64), Windows (x64)
+- [ ] `cargo install donttouch` support (publish to crates.io)
 
 ## Future Ideas
 
-- [ ] `[protect.delete]` vs `[protect.modify]` — separate patterns for delete-only vs any-change protection
+- [ ] `donttouch add <pattern>` / `donttouch remove-pattern <pattern>` — CLI pattern management
 - [ ] `.cursorignore` auto-sync — keep `.cursorignore` in sync with `.donttouch.toml` patterns
 - [ ] Watch mode — filesystem watcher that warns immediately on protected file modification
 - [ ] `donttouch why <file>` — show which pattern protects a given file
-- [ ] Pre-push hook option (in addition to pre-commit)
 - [ ] Monorepo support — `.donttouch.toml` at subdirectory level
