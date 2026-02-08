@@ -1,0 +1,14 @@
+[book]
+title = "donttouch"
+description = "Protect files from being modified by AI coding agents and accidental changes"
+authors = ["Kelly Sizer"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "../docs-out"
+
+[output.html]
+default-theme = "navy"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/sksizer/donttouch"
