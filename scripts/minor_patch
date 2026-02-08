@@ -1,0 +1,2 @@
+# bumps version and commits with no cargo publich (which is done in Github action)
+cargo release patch --execute --no-publish
