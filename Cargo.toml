@@ -1,6 +1,6 @@
 [package]
 name = "donttouch"
-version = "0.1.7"
+version = "0.1.6"
 edition = "2021"
 description = "Add a guard to keep particular files from being modified by AI coding agents and accidental commits"
 license = "MIT"
