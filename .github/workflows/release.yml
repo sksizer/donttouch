@@ -95,3 +95,78 @@ jobs:
         with:
           generate_release_notes: true
           files: artifacts/*
+
+  update-homebrew:
+    name: Update sksizer/homebrew-tap
+    needs: [github-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate formula
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          SHA_ARM=$(shasum -a 256 artifacts/donttouch-${GITHUB_REF_NAME}-aarch64-apple-darwin.tar.gz | awk '{print $1}')
+          SHA_INTEL=$(shasum -a 256 artifacts/donttouch-${GITHUB_REF_NAME}-x86_64-apple-darwin.tar.gz | awk '{print $1}')
+          SHA_LINUX_AMD=$(shasum -a 256 artifacts/donttouch-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.tar.gz | awk '{print $1}')
+          SHA_LINUX_ARM=$(shasum -a 256 artifacts/donttouch-${GITHUB_REF_NAME}-aarch64-unknown-linux-gnu.tar.gz | awk '{print $1}')
+          REPO="https://github.com/sksizer/donttouch/releases/download/${GITHUB_REF_NAME}"
+          mkdir -p Formula
+          cat > Formula/donttouch.rb <<EOF
+          class Donttouch < Formula
+            desc "Guard files from modification by AI coding agents and accidental commits"
+            homepage "https://donttouch.sksizer.com"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "${REPO}/donttouch-${GITHUB_REF_NAME}-aarch64-apple-darwin.tar.gz"
+                sha256 "${SHA_ARM}"
+              end
+              on_intel do
+                url "${REPO}/donttouch-${GITHUB_REF_NAME}-x86_64-apple-darwin.tar.gz"
+                sha256 "${SHA_INTEL}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "${REPO}/donttouch-${GITHUB_REF_NAME}-aarch64-unknown-linux-gnu.tar.gz"
+                sha256 "${SHA_LINUX_ARM}"
+              end
+              on_intel do
+                url "${REPO}/donttouch-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "${SHA_LINUX_AMD}"
+              end
+            end
+
+            def install
+              bin.install "donttouch"
+            end
+
+            test do
+              system "#{bin}/donttouch", "--version"
+            end
+          end
+          EOF
+          sed -i 's/^          //' Formula/donttouch.rb
+
+      - name: Push formula to sksizer/homebrew-tap
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          git clone https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/sksizer/homebrew-tap.git tap
+          mkdir -p tap/Formula
+          cp Formula/donttouch.rb tap/Formula/donttouch.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/donttouch.rb
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "donttouch ${GITHUB_REF_NAME}"
+          git push
